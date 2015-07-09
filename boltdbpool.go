@@ -1,4 +1,47 @@
-package boltdbpool
+/*
+Package boltdbpool implements a pool container for BoltDB github.com/boltdb/bolt databases.
+Pool elements called connections keep reference counts for each database to close it
+when it when the count is 0. Database is reused or opened based on database file path. Closing
+the database must not be done directly, instead Connection.Close() method should be used.
+Database is removed form the pool and closed by the goroutine in the background in respect to
+reference count and delay in time if it is specified.
+
+Example:
+
+    package main
+
+    import (
+        "fmt"
+        "time"
+
+        "resenje.org/boltdbpool"
+    )
+
+    func main() {
+        pool := boltdbpool.New(&boltdbpool.Options{
+            ConnectionExpires: 5 * time.Second,
+            ErrorHandler: func(err error) {
+                fmt.Printf("error: %v", err)
+            }
+        })
+        defer p.Close()
+
+        ...
+
+        c, err := pool.Get("/tmp/db.bolt")
+        if err != nil {
+            panic(err)
+        }
+        defer c.Close()
+
+        ...
+
+        c.DB.Update(func(tx *bolt.TX) error {
+            ...
+        })
+    }
+*/
+package boltdbpool // import "resenje.org/boltdbpool"
 
 import (
 	"fmt"
@@ -11,43 +54,54 @@ import (
 )
 
 var (
-	DefaultFileMode     = 0644
+	// DefaultFileMode is used in bolt.Open() as file mode for database file
+	// if FileMode is not specified in boltdbpool.Options.
+	DefaultFileMode = 0644
+
+	// DefaultErrorHandler is a function that accepts errors from
+	// goroutine that closes the databases if ErrorHandler is not specified in
+	// boltdbpool.Options.
 	DefaultErrorHandler = func(err error) {
 		log.Printf("error: %v", err)
 	}
-	DefaultCloseSleep = 250 * time.Millisecond
+
+	// DefaultCloseSleep is a time between database closing iterations.
+	defaultCloseSleep = 250 * time.Millisecond
 )
 
+// Connection encapsulates bolt.DB and keeps reference counter and closing time information.
 type Connection struct {
 	DB *bolt.DB
 
-	pool       *Pool
-	path       string
-	count      int64
-	closeDelay time.Duration
-	closeTime  time.Time
-	mu         *sync.Mutex
+	pool      *Pool
+	path      string
+	count     int64
+	expires   time.Duration
+	closeTime time.Time
+	mu        *sync.Mutex
 }
 
-func (c *Connection) Close() error {
+// Close function on Connection decrements reference counter and closes the database if needed.
+func (c *Connection) Close() {
 	c.decrement()
 	if c.count <= 0 {
-		if c.closeDelay == 0 {
-			return c.removeFromPool()
+		if c.expires == 0 {
+			c.pool.errorChannel <- c.removeFromPool()
+			return
 		}
 
 		c.mu.Lock()
 		defer c.mu.Unlock()
 
-		c.closeTime = time.Now().Add(c.closeDelay)
+		c.closeTime = time.Now().Add(c.expires)
 	}
-	return nil
 }
 
 func (c *Connection) increment() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Reset the closing time
 	c.closeTime = time.Time{}
 	c.count++
 }
@@ -63,28 +117,33 @@ func (c *Connection) removeFromPool() error {
 	return c.pool.remove(c.path)
 }
 
+// Options are used when a new pool is created that.
 type Options struct {
-	BoltOptions  *bolt.Options
-	FileMode     os.FileMode
-	CloseDelay   time.Duration
+	// BoltOptions is used on bolt.Open().
+	BoltOptions *bolt.Options
+
+	// FileMode is used in bolt.Open() as file mode for database file. Deafult: 0640.
+	FileMode os.FileMode
+
+	// ConnectionExpires is a duration between the reference count drops to 0 and
+	// the time when the database is closed. It is useful to avoid frequent
+	// openings of the same database. If the value is 0 (default), no caching is done.
+	ConnectionExpires time.Duration
+
+	// ErrorHandler is a function that accepts errors from goroutine that closes the databases.
 	ErrorHandler func(err error)
 }
 
+// Pool keeps track of connections.
 type Pool struct {
-	Options *Options
-
+	options      *Options
 	errorChannel chan error
 	connections  map[string]*Connection
 	mu           *sync.Mutex
 }
 
-func (p *Pool) Close() {
-	for _, c := range p.connections {
-		p.errorChannel <- c.removeFromPool()
-	}
-	close(p.errorChannel)
-}
-
+// New creates new pool with provided options and also starts database closing goroutone
+// and goroutine for errors handling to ErrorHandler.
 func New(options *Options) *Pool {
 	if options == nil {
 		options = &Options{}
@@ -96,7 +155,7 @@ func New(options *Options) *Pool {
 		options.ErrorHandler = DefaultErrorHandler
 	}
 	p := &Pool{
-		Options:      options,
+		options:      options,
 		errorChannel: make(chan error),
 		connections:  map[string]*Connection{},
 		mu:           &sync.Mutex{},
@@ -108,19 +167,21 @@ func New(options *Options) *Pool {
 					p.errorChannel <- c.removeFromPool()
 				}
 			}
-			time.Sleep(DefaultCloseSleep)
+			time.Sleep(defaultCloseSleep)
 		}
 	}()
 	go func() {
 		for err := range p.errorChannel {
 			if err != nil {
-				p.Options.ErrorHandler(err)
+				p.options.ErrorHandler(err)
 			}
 		}
 	}()
 	return p
 }
 
+// Get returns a connection that contains a database or creates a new connection
+// with newly opened database based on options specified on pool creation.
 func (p *Pool) Get(path string) (*Connection, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -129,16 +190,16 @@ func (p *Pool) Get(path string) (*Connection, error) {
 		c.increment()
 		return c, nil
 	}
-	db, err := bolt.Open(path, p.Options.FileMode, p.Options.BoltOptions)
+	db, err := bolt.Open(path, p.options.FileMode, p.options.BoltOptions)
 	if err != nil {
 		return nil, err
 	}
 	c := &Connection{
-		DB:         db,
-		path:       path,
-		pool:       p,
-		closeDelay: p.Options.CloseDelay,
-		mu:         &sync.Mutex{},
+		DB:      db,
+		path:    path,
+		pool:    p,
+		expires: p.options.ConnectionExpires,
+		mu:      &sync.Mutex{},
 	}
 	p.connections[path] = c
 
@@ -146,12 +207,22 @@ func (p *Pool) Get(path string) (*Connection, error) {
 	return c, nil
 }
 
+// Has returns true if a database with a file path is in the pool.
 func (p *Pool) Has(path string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	_, ok := p.connections[path]
 	return ok
+}
+
+// Close function closes and removes from the pool all databases. After the execution
+// pool is not usable.
+func (p *Pool) Close() {
+	for _, c := range p.connections {
+		p.errorChannel <- c.removeFromPool()
+	}
+	close(p.errorChannel)
 }
 
 func (p *Pool) remove(path string) error {
