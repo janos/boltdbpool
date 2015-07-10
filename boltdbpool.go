@@ -56,7 +56,7 @@ import (
 var (
 	// DefaultFileMode is used in bolt.Open() as file mode for database file
 	// if FileMode is not specified in boltdbpool.Options.
-	DefaultFileMode = 0644
+	DefaultFileMode = os.FileMode(0640)
 
 	// DefaultErrorHandler is a function that accepts errors from
 	// goroutine that closes the databases if ErrorHandler is not specified in
@@ -149,7 +149,7 @@ func New(options *Options) *Pool {
 		options = &Options{}
 	}
 	if options.FileMode == 0 {
-		options.FileMode = os.FileMode(DefaultFileMode)
+		options.FileMode = DefaultFileMode
 	}
 	if options.ErrorHandler == nil {
 		options.ErrorHandler = DefaultErrorHandler
