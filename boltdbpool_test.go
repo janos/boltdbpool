@@ -271,9 +271,9 @@ func TestExpires(t *testing.T) {
 func TestErrorHandler(t *testing.T) {
 	var errorMarker error
 	pool := New(&Options{
-		ErrorHandler: func(err error) {
+		ErrorHandler: ErrorHandlerFunc(func(err error) {
 			errorMarker = err
-		},
+		}),
 	})
 	defer pool.Close()
 

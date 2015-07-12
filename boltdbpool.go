@@ -20,9 +20,9 @@ Example:
     func main() {
         pool := boltdbpool.New(&boltdbpool.Options{
             ConnectionExpires: 5 * time.Second,
-            ErrorHandler: func(err error) {
+            ErrorHandler: boltdbpool.ErrorHandlerFunc(func(err error) {
                 fmt.Printf("error: %v", err)
-            }
+            }),
         })
         defer p.Close()
 
@@ -58,12 +58,12 @@ var (
 	// if FileMode is not specified in boltdbpool.Options.
 	DefaultFileMode = os.FileMode(0640)
 
-	// DefaultErrorHandler is a function that accepts errors from
+	// DefaultErrorHandler accepts errors from
 	// goroutine that closes the databases if ErrorHandler is not specified in
 	// boltdbpool.Options.
-	DefaultErrorHandler = func(err error) {
+	DefaultErrorHandler = ErrorHandlerFunc(func(err error) {
 		log.Printf("error: %v", err)
-	}
+	})
 
 	// DefaultCloseSleep is a time between database closing iterations.
 	defaultCloseSleep = 250 * time.Millisecond
@@ -117,6 +117,20 @@ func (c *Connection) removeFromPool() error {
 	return c.pool.remove(c.path)
 }
 
+// ErrorHandler interface can be used for objects that log or panic on error
+type ErrorHandler interface {
+	HandleError(err error)
+}
+
+// The ErrorHandlerFunc type is an adapter to allow the use of
+// ordinary functions as error handlers.
+type ErrorHandlerFunc func(err error)
+
+// HandleError calls f(err).
+func (f ErrorHandlerFunc) HandleError(err error) {
+	f(err)
+}
+
 // Options are used when a new pool is created that.
 type Options struct {
 	// BoltOptions is used on bolt.Open().
@@ -130,8 +144,8 @@ type Options struct {
 	// openings of the same database. If the value is 0 (default), no caching is done.
 	ConnectionExpires time.Duration
 
-	// ErrorHandler is a function that accepts errors from goroutine that closes the databases.
-	ErrorHandler func(err error)
+	// ErrorHandler represents interface that accepts errors from goroutine that closes the databases.
+	ErrorHandler ErrorHandler
 }
 
 // Pool keeps track of connections.
@@ -173,7 +187,7 @@ func New(options *Options) *Pool {
 	go func() {
 		for err := range p.errorChannel {
 			if err != nil {
-				p.options.ErrorHandler(err)
+				p.options.ErrorHandler.HandleError(err)
 			}
 		}
 	}()
