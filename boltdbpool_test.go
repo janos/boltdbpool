@@ -274,6 +274,9 @@ func TestErrorHandler(t *testing.T) {
 		ErrorHandler: ErrorHandlerFunc(func(err error) {
 			errorMarker = err
 		}),
+		BoltOptions: &bolt.Options{
+			Timeout: 1,
+		},
 	})
 	defer pool.Close()
 
@@ -298,7 +301,15 @@ func TestErrorHandler(t *testing.T) {
 		t.Error("Error is not propagated to ErrorHandler")
 	}
 
-	connection, err = pool.Get(path)
+	path2 := tempfile()
+	defer func() {
+		err := os.Remove(path2)
+		if err != nil {
+			t.Error(err)
+		}
+	}()
+
+	connection, err = pool.Get(path2)
 	if err != nil {
 		t.Errorf("Getting new connection: %s", err)
 	}
