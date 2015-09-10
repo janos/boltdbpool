@@ -1,0 +1,13 @@
+language: go
+
+go:
+  - 1.5
+
+install:
+  - go get -insecure -v resenje.org/boltdbpool
+
+before_script:
+  - go vet -v resenje.org/boltdbpool/...
+
+script:
+  - go test -v resenje.org/boltdbpool/...
