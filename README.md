@@ -2,6 +2,6 @@
 
 [![Build Status](https://travis-ci.org/janos/boltdbpool.svg?branch=master)](https://travis-ci.org/janos/boltdbpool)
 
-## Instalation
+## Installation
 
 Run `go get resenje.org/boltdbpool` from command line.
