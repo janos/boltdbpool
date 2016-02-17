@@ -188,6 +188,74 @@ func (p *Pool) GetConnection(t time.Time) (conn *Connection, err error) {
 	}, nil
 }
 
+func (p *Pool) NextConnection(t time.Time) (conn *Connection, err error) {
+	path := ""
+	series := p.seriesFromTime(t)
+	for i := 0; i < len(p.series); i++ {
+		s := p.series[i]
+		if s > series {
+			path = p.pathFromSeries(s)
+			if _, err = os.Stat(path); os.IsNotExist(err) {
+				p.mu.Lock()
+				p.series = append(p.series[:i], p.series[i+1:]...)
+				p.mu.Unlock()
+				continue
+			} else if err != nil {
+				return
+			}
+			series = s
+			break
+		}
+	}
+	if path == "" {
+		err = ErrUnknownDB
+		return
+	}
+	c, err := p.pool.Get(path)
+	if err != nil {
+		return nil, err
+	}
+	return &Connection{
+		Connection: c,
+		pool:       p,
+		series:     series,
+	}, nil
+}
+
+func (p *Pool) PrevConnection(t time.Time) (conn *Connection, err error) {
+	path := ""
+	series := p.seriesFromTime(t)
+	for i := len(p.series) - 1; i >= 0; i-- {
+		s := p.series[i]
+		if s < series {
+			path = p.pathFromSeries(s)
+			if _, err = os.Stat(path); os.IsNotExist(err) {
+				p.mu.Lock()
+				p.series = append(p.series[:i], p.series[i+1:]...)
+				p.mu.Unlock()
+				continue
+			} else if err != nil {
+				return
+			}
+			series = s
+			break
+		}
+	}
+	if path == "" {
+		err = ErrUnknownDB
+		return
+	}
+	c, err := p.pool.Get(path)
+	if err != nil {
+		return nil, err
+	}
+	return &Connection{
+		Connection: c,
+		pool:       p,
+		series:     series,
+	}, nil
+}
+
 type Connection struct {
 	*boltdbpool.Connection
 	pool   *Pool
@@ -216,7 +284,7 @@ func (c Connection) Next() (*Connection, error) {
 	return nil, ErrUnknownDB
 }
 
-func (c Connection) Previous() (*Connection, error) {
+func (c Connection) Prev() (*Connection, error) {
 	c.pool.mu.Lock()
 	defer c.pool.mu.Unlock()
 
