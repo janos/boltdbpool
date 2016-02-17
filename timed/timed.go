@@ -198,16 +198,18 @@ func (c Connection) Next() (*Connection, error) {
 	c.pool.mu.Lock()
 	defer c.pool.mu.Unlock()
 
-	for i, s := range c.pool.series {
+	for i := 0; i < len(c.pool.series)-1; i++ {
+		s := c.pool.series[i]
 		if s == c.series {
-			nc, err := c.pool.connFromPath(c.pool.pathFromSeries(c.pool.series[i+1]))
+			ns := c.pool.series[i+1]
+			nc, err := c.pool.connFromPath(c.pool.pathFromSeries(ns))
 			if err != nil {
 				return nil, err
 			}
 			return &Connection{
 				Connection: nc,
 				pool:       c.pool,
-				series:     c.pool.series[i+1],
+				series:     ns,
 			}, nil
 		}
 	}
@@ -218,16 +220,18 @@ func (c Connection) Previous() (*Connection, error) {
 	c.pool.mu.Lock()
 	defer c.pool.mu.Unlock()
 
-	for i, s := range c.pool.series {
+	for i := len(c.pool.series) - 1; i > 0; i-- {
+		s := c.pool.series[i]
 		if s == c.series {
-			nc, err := c.pool.connFromPath(c.pool.pathFromSeries(c.pool.series[i-1]))
+			ns := c.pool.series[i-1]
+			nc, err := c.pool.connFromPath(c.pool.pathFromSeries(ns))
 			if err != nil {
 				return nil, err
 			}
 			return &Connection{
 				Connection: nc,
 				pool:       c.pool,
-				series:     c.pool.series[i-1],
+				series:     ns,
 			}, nil
 		}
 	}
