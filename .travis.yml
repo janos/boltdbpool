@@ -4,7 +4,7 @@ go:
   - 1.7
 
 install:
-  - go get -v resenje.org/boltdbpool
+  - go get -v resenje.org/boltdbpool/...
 
 before_script:
   - go vet -v resenje.org/boltdbpool/...
