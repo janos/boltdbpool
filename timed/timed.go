@@ -180,14 +180,6 @@ func (p *Pool) GetConnection(t time.Time) (conn *Connection, err error) {
 	series := p.seriesFromTime(t)
 	path := p.pathFromSeries(series)
 	if _, err = os.Stat(path); os.IsNotExist(err) {
-		p.mu.Lock()
-		for i := len(p.series) - 1; i >= 0; i-- {
-			if p.series[i] == series {
-				p.series = append(p.series[:i], p.series[i+1:]...)
-				break
-			}
-		}
-		p.mu.Unlock()
 		err = ErrUnknownDB
 		return
 	} else if err != nil {
@@ -214,9 +206,6 @@ func (p *Pool) NextConnection(t time.Time) (conn *Connection, err error) {
 		if s > series {
 			path = p.pathFromSeries(s)
 			if _, err = os.Stat(path); os.IsNotExist(err) {
-				p.mu.Lock()
-				p.series = append(p.series[:i], p.series[i+1:]...)
-				p.mu.Unlock()
 				continue
 			} else if err != nil {
 				return
@@ -250,9 +239,6 @@ func (p *Pool) PrevConnection(t time.Time) (conn *Connection, err error) {
 		if s < series {
 			path = p.pathFromSeries(s)
 			if _, err = os.Stat(path); os.IsNotExist(err) {
-				p.mu.Lock()
-				p.series = append(p.series[:i], p.series[i+1:]...)
-				p.mu.Unlock()
 				continue
 			} else if err != nil {
 				return
