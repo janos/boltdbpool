@@ -264,6 +264,11 @@ func (p *Pool) PrevConnection(t time.Time) (conn *Connection, err error) {
 	}, nil
 }
 
+// Close closes underlying boltdbpool.Pool.
+func (p Pool) Close() {
+	p.pool.Close()
+}
+
 // Connection represents a boltdbpool.Connection for a particular
 // time partition.
 type Connection struct {
