@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -164,6 +165,7 @@ func (p *Pool) NewConnection(t time.Time) (conn *Connection, err error) {
 	}
 	if !found {
 		p.series = append(p.series, series)
+		sort.Strings(p.series)
 	}
 	p.mu.Unlock()
 
