@@ -236,12 +236,12 @@ func TestExpires(t *testing.T) {
 		t.Errorf("connection reference counter is not 1: %d", connection.count)
 	}
 	if !connection.closeTime.IsZero() && connection.count > 0 {
-		t.Errorf("connection.closeTime is not zero after conection.Close() and connection.count > 0")
+		t.Errorf("connection.closeTime is not zero after connection.Close() and connection.count > 0")
 	}
 
 	connection.Close()
 	if connection.closeTime.IsZero() {
-		t.Errorf("connection.closeTime is still zero after conection.Close() with expires option")
+		t.Errorf("connection.closeTime is still zero after connection.Close() with expires option")
 	}
 	if dbPath := connection.DB.Path(); dbPath != path {
 		t.Errorf("connection.DB.Path() (%s) != path (%s); after connection.Close() with expires option", dbPath, path)
@@ -263,7 +263,7 @@ func TestExpires(t *testing.T) {
 	connection.Close()
 	pool.Get(path)
 	if !connection.closeTime.IsZero() {
-		t.Errorf("connection.closeTime is not zero after conection.Close() and seconf connection.Get() with expires option")
+		t.Errorf("connection.closeTime is not zero after connection.Close() and seconf connection.Get() with expires option")
 	}
 	connection.Close()
 }
