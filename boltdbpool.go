@@ -146,10 +146,10 @@ type Options struct {
 	// BoltOptions is used on bolt.Open().
 	BoltOptions *bolt.Options
 
-	// FileMode is used in bolt.Open() as file mode for database file. Deafult: 0640.
+	// FileMode is used in bolt.Open() as file mode for database file. Default: 0640.
 	FileMode os.FileMode
 
-	// DirMode is used in os.MkdirAll() as file mode for database directories. Deafult: 0750.
+	// DirMode is used in os.MkdirAll() as file mode for database directories. Default: 0750.
 	DirMode os.FileMode
 
 	// ConnectionExpires is a duration between the reference count drops to 0 and
