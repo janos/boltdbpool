@@ -3,6 +3,7 @@ package boltdbpool
 import (
 	"io/ioutil"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -243,17 +244,13 @@ func TestExpires(t *testing.T) {
 	if connection.closeTime.IsZero() {
 		t.Errorf("connection.closeTime is still zero after connection.Close() with expires option")
 	}
-	if dbPath := connection.DB.Path(); dbPath != path {
-		t.Errorf("connection.DB.Path() (%s) != path (%s); after connection.Close() with expires option", dbPath, path)
-	}
 	time.Sleep(connectionExpires)
 	time.Sleep(defaultCloseSleep)
+	pool.mu.RLock()
 	if poolLen := len(pool.connections); poolLen != 0 {
 		t.Errorf("pool.connections number of connections is not 0: %d; after connection.Close() with expires option and time.Sleep()", poolLen)
 	}
-	if dbPath := connection.DB.Path(); dbPath == path {
-		t.Error("database is still open after connection.Close() with expires option and time.Sleep()")
-	}
+	pool.mu.RUnlock()
 
 	// New connection
 	connection, err = pool.Get(path)
@@ -269,10 +266,13 @@ func TestExpires(t *testing.T) {
 }
 
 func TestErrorHandler(t *testing.T) {
+	mu := &sync.Mutex{}
 	var errorMarker error
 	pool := New(&Options{
 		ErrorHandler: ErrorHandlerFunc(func(err error) {
+			mu.Lock()
 			errorMarker = err
+			mu.Unlock()
 		}),
 		BoltOptions: &bolt.Options{
 			Timeout: 1,
@@ -293,13 +293,17 @@ func TestErrorHandler(t *testing.T) {
 		t.Errorf("Getting new connection: %s", err)
 	}
 
+	pool.mu.Lock()
 	delete(pool.connections, path)
+	pool.mu.Unlock()
 
 	connection.Close()
 	time.Sleep(time.Second)
+	mu.Lock()
 	if errorMarker == nil {
 		t.Error("Error is not propagated to ErrorHandler")
 	}
+	mu.Unlock()
 
 	path2 := tempfile()
 	defer func() {
