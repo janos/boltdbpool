@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boltdb/bolt"
+	"github.com/coreos/bbolt"
 )
 
 func TestNewPool(t *testing.T) {
