@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file.
 
 /*
-Package boltdbpool implements a pool container for BoltDB github.com/boltdb/bolt databases.
+Package boltdbpool implements a pool container for BoltDB github.com/coreos/bbolt databases.
 Pool elements called connections keep reference counts for each database to close it
 when it when the count is 0. Database is reused or opened based on database file path. Closing
 the database must not be done directly, instead Connection.Close() method should be used.
