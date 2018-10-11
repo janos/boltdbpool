@@ -56,7 +56,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/etcd-io/bbolt"
 )
 
 var (
