@@ -56,7 +56,7 @@ import (
 	"sync"
 	"time"
 
-	bolt "github.com/etcd-io/bbolt"
+	bolt "go.etcd.io/bbolt"
 )
 
 var (

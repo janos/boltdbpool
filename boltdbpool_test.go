@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	bolt "github.com/etcd-io/bbolt"
+	bolt "go.etcd.io/bbolt"
 )
 
 func TestNewPool(t *testing.T) {
