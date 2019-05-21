@@ -76,70 +76,6 @@ var (
 	})
 )
 
-// Connection encapsulates bolt.DB and keeps reference counter and closing time information.
-type Connection struct {
-	DB *bolt.DB
-
-	pool      *Pool
-	path      string
-	count     int64
-	closeTime time.Time
-	mu        sync.RWMutex
-}
-
-// Close function on Connection decrements reference counter and closes the database if needed.
-func (c *Connection) Close() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.decrement()
-
-	if c.count > 0 {
-		return
-	}
-
-	if c.pool.options.ConnectionExpires == 0 {
-		c.pool.mu.Lock()
-		c.pool.handleError(c.removeFromPool())
-		c.pool.mu.Unlock()
-		return
-	}
-
-	c.closeTime = time.Now().Add(c.pool.options.ConnectionExpires)
-	select {
-	case c.pool.removeTrigger <- struct{}{}:
-	default:
-	}
-}
-
-func (c *Connection) increment() {
-	// Reset the closing time
-	c.closeTime = time.Time{}
-	c.count++
-}
-
-func (c *Connection) decrement() {
-	c.count--
-}
-
-func (c *Connection) removeFromPool() error {
-	return c.pool.remove(c.path)
-}
-
-// ErrorHandler interface can be used for objects that log or panic on error
-type ErrorHandler interface {
-	HandleError(err error)
-}
-
-// The ErrorHandlerFunc type is an adapter to allow the use of
-// ordinary functions as error handlers.
-type ErrorHandlerFunc func(err error)
-
-// HandleError calls f(err).
-func (f ErrorHandlerFunc) HandleError(err error) {
-	f(err)
-}
-
 // Options are used when a new pool is created that.
 type Options struct {
 	// BoltOptions is used on bolt.Open().
@@ -285,4 +221,68 @@ func (p *Pool) handleError(err error) {
 	if err != nil {
 		p.options.ErrorHandler.HandleError(err)
 	}
+}
+
+// Connection encapsulates bolt.DB and keeps reference counter and closing time information.
+type Connection struct {
+	DB *bolt.DB
+
+	pool      *Pool
+	path      string
+	count     int64
+	closeTime time.Time
+	mu        sync.RWMutex
+}
+
+// Close function on Connection decrements reference counter and closes the database if needed.
+func (c *Connection) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.decrement()
+
+	if c.count > 0 {
+		return
+	}
+
+	if c.pool.options.ConnectionExpires == 0 {
+		c.pool.mu.Lock()
+		c.pool.handleError(c.removeFromPool())
+		c.pool.mu.Unlock()
+		return
+	}
+
+	c.closeTime = time.Now().Add(c.pool.options.ConnectionExpires)
+	select {
+	case c.pool.removeTrigger <- struct{}{}:
+	default:
+	}
+}
+
+func (c *Connection) increment() {
+	// Reset the closing time
+	c.closeTime = time.Time{}
+	c.count++
+}
+
+func (c *Connection) decrement() {
+	c.count--
+}
+
+func (c *Connection) removeFromPool() error {
+	return c.pool.remove(c.path)
+}
+
+// ErrorHandler interface can be used for objects that log or panic on error
+type ErrorHandler interface {
+	HandleError(err error)
+}
+
+// The ErrorHandlerFunc type is an adapter to allow the use of
+// ordinary functions as error handlers.
+type ErrorHandlerFunc func(err error)
+
+// HandleError calls f(err).
+func (f ErrorHandlerFunc) HandleError(err error) {
+	f(err)
 }
