@@ -25,9 +25,9 @@ Example:
     func main() {
         pool := boltdbpool.New(&boltdbpool.Options{
             ConnectionExpires: 5 * time.Second,
-            ErrorHandler: boltdbpool.ErrorHandlerFunc(func(err error) {
+            ErrorHandler: func(err error) {
                 fmt.Printf("error: %v", err)
-            }),
+            },
         })
         defer p.Close()
 
@@ -68,12 +68,10 @@ var (
 	// if DirMode is not specified in boltdbpool.Options.
 	DefaultDirMode = os.FileMode(0777)
 
-	// DefaultErrorHandler accepts errors from
-	// goroutine that closes the databases if ErrorHandler is not specified in
-	// boltdbpool.Options.
-	DefaultErrorHandler = ErrorHandlerFunc(func(err error) {
+	// DefaultErrorHandler is the default function that prints errors from the Pool.
+	DefaultErrorHandler = func(err error) {
 		log.Printf("error: %v", err)
-	})
+	}
 )
 
 // Options are used when a new pool is created that.
@@ -92,8 +90,8 @@ type Options struct {
 	// openings of the same database. If the value is 0 (default), no caching is done.
 	ConnectionExpires time.Duration
 
-	// ErrorHandler represents interface that accepts errors from goroutine that closes the databases.
-	ErrorHandler ErrorHandler
+	// ErrorHandler is the function that handles errors.
+	ErrorHandler func(error)
 }
 
 // Pool keeps track of connections.
@@ -139,7 +137,7 @@ func New(options *Options) *Pool {
 				for _, c := range p.connections {
 					c.mu.RLock()
 					if !c.closeTime.IsZero() && c.closeTime.Before(time.Now()) {
-						p.handleError(c.removeFromPool())
+						p.handleError(c.remove())
 					}
 					c.mu.RUnlock()
 				}
@@ -203,7 +201,7 @@ func (p *Pool) Close() {
 	defer p.mu.Unlock()
 
 	for _, c := range p.connections {
-		p.handleError(c.removeFromPool())
+		p.handleError(c.remove())
 	}
 	close(p.quit)
 }
@@ -219,7 +217,7 @@ func (p *Pool) remove(path string) error {
 
 func (p *Pool) handleError(err error) {
 	if err != nil {
-		p.options.ErrorHandler.HandleError(err)
+		p.options.ErrorHandler(err)
 	}
 }
 
@@ -247,7 +245,7 @@ func (c *Connection) Close() {
 
 	if c.pool.options.ConnectionExpires == 0 {
 		c.pool.mu.Lock()
-		c.pool.handleError(c.removeFromPool())
+		c.pool.handleError(c.remove())
 		c.pool.mu.Unlock()
 		return
 	}
@@ -269,20 +267,6 @@ func (c *Connection) decrement() {
 	c.count--
 }
 
-func (c *Connection) removeFromPool() error {
+func (c *Connection) remove() error {
 	return c.pool.remove(c.path)
-}
-
-// ErrorHandler interface can be used for objects that log or panic on error
-type ErrorHandler interface {
-	HandleError(err error)
-}
-
-// The ErrorHandlerFunc type is an adapter to allow the use of
-// ordinary functions as error handlers.
-type ErrorHandlerFunc func(err error)
-
-// HandleError calls f(err).
-func (f ErrorHandlerFunc) HandleError(err error) {
-	f(err)
 }

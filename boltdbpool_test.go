@@ -265,11 +265,11 @@ func TestErrorHandler(t *testing.T) {
 	mu := &sync.Mutex{}
 	var errorMarker error
 	pool := New(&Options{
-		ErrorHandler: ErrorHandlerFunc(func(err error) {
+		ErrorHandler: func(err error) {
 			mu.Lock()
 			errorMarker = err
 			mu.Unlock()
-		}),
+		},
 		BoltOptions: &bolt.Options{
 			Timeout: 1,
 		},
