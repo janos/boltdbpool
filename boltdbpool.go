@@ -211,7 +211,7 @@ func (p *Pool) Close() {
 func (p *Pool) remove(path string) error {
 	c, ok := p.connections[path]
 	if !ok {
-		return fmt.Errorf("boltdbpool: Unknown DB %s", path)
+		return fmt.Errorf("boltdbpool: unknown db %s", path)
 	}
 	delete(p.connections, path)
 	return c.DB.Close()
