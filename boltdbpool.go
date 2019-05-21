@@ -89,41 +89,37 @@ type Connection struct {
 
 // Close function on Connection decrements reference counter and closes the database if needed.
 func (c *Connection) Close() {
-	c.decrement()
-	if c.count <= 0 {
-		if c.pool.options.ConnectionExpires == 0 {
-			c.pool.mu.Lock()
-			c.pool.handleError(c.removeFromPool())
-			c.pool.mu.Unlock()
-			return
-		}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-		c.mu.Lock()
-		c.closeTime = time.Now().Add(c.pool.options.ConnectionExpires)
-		c.mu.Unlock()
-		select {
-		case c.pool.removeTrigger <- struct{}{}:
-		default:
-		}
+	c.decrement()
+
+	if c.count > 0 {
+		return
+	}
+
+	if c.pool.options.ConnectionExpires == 0 {
+		c.pool.mu.Lock()
+		c.pool.handleError(c.removeFromPool())
+		c.pool.mu.Unlock()
+		return
+	}
+
+	c.closeTime = time.Now().Add(c.pool.options.ConnectionExpires)
+	select {
+	case c.pool.removeTrigger <- struct{}{}:
+	default:
 	}
 }
 
 func (c *Connection) increment() {
-	c.mu.Lock()
-
 	// Reset the closing time
 	c.closeTime = time.Time{}
 	c.count++
-
-	c.mu.Unlock()
 }
 
 func (c *Connection) decrement() {
-	c.mu.Lock()
-
 	c.count--
-
-	c.mu.Unlock()
 }
 
 func (c *Connection) removeFromPool() error {
@@ -227,7 +223,9 @@ func (p *Pool) Get(path string) (*Connection, error) {
 	defer p.mu.Unlock()
 
 	if c, ok := p.connections[path]; ok {
+		c.mu.Lock()
 		c.increment()
+		c.mu.Unlock()
 		return c, nil
 	}
 	if _, err := os.Stat(filepath.Dir(path)); os.IsNotExist(err) {
@@ -246,9 +244,10 @@ func (p *Pool) Get(path string) (*Connection, error) {
 		path: path,
 		pool: p,
 	}
-	p.connections[path] = c
-
+	c.mu.Lock()
 	c.increment()
+	p.connections[path] = c
+	c.mu.Unlock()
 	return c, nil
 }
 
