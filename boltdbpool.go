@@ -88,7 +88,7 @@ type Connection struct {
 	count     int64
 	expires   time.Duration
 	closeTime time.Time
-	mu        *sync.RWMutex
+	mu        sync.RWMutex
 }
 
 // Close function on Connection decrements reference counter and closes the database if needed.
@@ -169,7 +169,7 @@ type Pool struct {
 	options      *Options
 	errorChannel chan error
 	connections  map[string]*Connection
-	mu           *sync.RWMutex
+	mu           sync.RWMutex
 }
 
 // New creates new pool with provided options and also starts database closing goroutone
@@ -191,7 +191,6 @@ func New(options *Options) *Pool {
 		options:      options,
 		errorChannel: make(chan error),
 		connections:  map[string]*Connection{},
-		mu:           &sync.RWMutex{},
 	}
 	go func() {
 		for {
@@ -243,7 +242,6 @@ func (p *Pool) Get(path string) (*Connection, error) {
 		path:    path,
 		pool:    p,
 		expires: p.options.ConnectionExpires,
-		mu:      &sync.RWMutex{},
 	}
 	p.connections[path] = c
 
