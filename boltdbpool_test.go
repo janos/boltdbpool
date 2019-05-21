@@ -136,8 +136,8 @@ func TestConnection(t *testing.T) {
 	if !connection.closeTime.IsZero() {
 		t.Errorf("connection.closeTime is not zero: %s", connection.closeTime)
 	}
-	if connection.expires != 0 {
-		t.Errorf("connection.expires is not 0: %s", connection.expires)
+	if connection.pool.options.ConnectionExpires != 0 {
+		t.Errorf("connection.pool.options.ConnectionExpires is not 0: %s", connection.pool.options.ConnectionExpires)
 	}
 	if dbPath := connection.DB.Path(); dbPath != path {
 		t.Errorf("connection.DB.Path() (%s) != path (%s)", dbPath, path)
@@ -230,8 +230,8 @@ func TestExpires(t *testing.T) {
 	if err != nil {
 		t.Errorf("Getting new connection: %s", err)
 	}
-	if connection.expires != connectionExpires {
-		t.Error("connection.xpires is not connectionExpires")
+	if connection.pool.options.ConnectionExpires != connectionExpires {
+		t.Error("connection.pool.options.ConnectionExpires is not connectionExpires")
 	}
 	pool.Get(path)
 	if connection.count != 2 {
@@ -249,8 +249,7 @@ func TestExpires(t *testing.T) {
 	if connection.closeTime.IsZero() {
 		t.Errorf("connection.closeTime is still zero after connection.Close() with expires option")
 	}
-	time.Sleep(connectionExpires)
-	time.Sleep(defaultCloseSleep)
+	time.Sleep(connectionExpires + 100*time.Millisecond)
 	pool.mu.RLock()
 	if poolLen := len(pool.connections); poolLen != 0 {
 		t.Errorf("pool.connections number of connections is not 0: %d; after connection.Close() with expires option and time.Sleep()", poolLen)

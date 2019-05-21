@@ -74,9 +74,6 @@ var (
 	DefaultErrorHandler = ErrorHandlerFunc(func(err error) {
 		log.Printf("error: %v", err)
 	})
-
-	// DefaultCloseSleep is a time between database closing iterations.
-	defaultCloseSleep = 250 * time.Millisecond
 )
 
 // Connection encapsulates bolt.DB and keeps reference counter and closing time information.
@@ -86,7 +83,6 @@ type Connection struct {
 	pool      *Pool
 	path      string
 	count     int64
-	expires   time.Duration
 	closeTime time.Time
 	mu        sync.RWMutex
 }
@@ -95,7 +91,7 @@ type Connection struct {
 func (c *Connection) Close() {
 	c.decrement()
 	if c.count <= 0 {
-		if c.expires == 0 {
+		if c.pool.options.ConnectionExpires == 0 {
 			c.pool.mu.Lock()
 			c.pool.errorChannel <- c.removeFromPool()
 			c.pool.mu.Unlock()
@@ -103,8 +99,12 @@ func (c *Connection) Close() {
 		}
 
 		c.mu.Lock()
-		c.closeTime = time.Now().Add(c.expires)
+		c.closeTime = time.Now().Add(c.pool.options.ConnectionExpires)
 		c.mu.Unlock()
+		select {
+		case c.pool.removeTrigger <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -166,11 +166,12 @@ type Options struct {
 
 // Pool keeps track of connections.
 type Pool struct {
-	options      *Options
-	errorChannel chan error
-	connections  map[string]*Connection
-	mu           sync.RWMutex
-	quit         chan struct{}
+	options       *Options
+	errorChannel  chan error
+	connections   map[string]*Connection
+	mu            sync.RWMutex
+	removeTrigger chan struct{}
+	quit          chan struct{}
 }
 
 // New creates new pool with provided options and also starts database closing goroutone
@@ -189,15 +190,21 @@ func New(options *Options) *Pool {
 		options.ErrorHandler = DefaultErrorHandler
 	}
 	p := &Pool{
-		options:      options,
-		errorChannel: make(chan error),
-		connections:  map[string]*Connection{},
-		quit:         make(chan struct{}),
+		options:       options,
+		errorChannel:  make(chan error),
+		connections:   map[string]*Connection{},
+		removeTrigger: make(chan struct{}, 1),
+		quit:          make(chan struct{}),
 	}
 	go func() {
 		for {
 			select {
-			case <-time.After(defaultCloseSleep):
+			case <-p.removeTrigger:
+				select {
+				case <-time.After(p.options.ConnectionExpires):
+				case <-p.quit:
+					return
+				}
 				p.mu.Lock()
 				for _, c := range p.connections {
 					c.mu.RLock()
@@ -244,10 +251,9 @@ func (p *Pool) Get(path string) (*Connection, error) {
 		return nil, err
 	}
 	c := &Connection{
-		DB:      db,
-		path:    path,
-		pool:    p,
-		expires: p.options.ConnectionExpires,
+		DB:   db,
+		path: path,
+		pool: p,
 	}
 	p.connections[path] = c
 
