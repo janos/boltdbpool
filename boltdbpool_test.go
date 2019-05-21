@@ -88,14 +88,6 @@ func TestPoolClose(t *testing.T) {
 	if len(pool.connections) != 0 {
 		t.Error("pool.connections is not empty after pool.Close()")
 	}
-
-	defer func() {
-		if err := recover(); err == nil {
-			t.Error("No panic on closing pool.errorChannel after pool.Close(), the cannel was open")
-		}
-	}()
-
-	close(pool.errorChannel)
 }
 
 func TestPoolGetError(t *testing.T) {

@@ -93,7 +93,7 @@ func (c *Connection) Close() {
 	if c.count <= 0 {
 		if c.pool.options.ConnectionExpires == 0 {
 			c.pool.mu.Lock()
-			c.pool.errorChannel <- c.removeFromPool()
+			c.pool.handleError(c.removeFromPool())
 			c.pool.mu.Unlock()
 			return
 		}
@@ -167,7 +167,6 @@ type Options struct {
 // Pool keeps track of connections.
 type Pool struct {
 	options       *Options
-	errorChannel  chan error
 	connections   map[string]*Connection
 	mu            sync.RWMutex
 	removeTrigger chan struct{}
@@ -191,7 +190,6 @@ func New(options *Options) *Pool {
 	}
 	p := &Pool{
 		options:       options,
-		errorChannel:  make(chan error),
 		connections:   map[string]*Connection{},
 		removeTrigger: make(chan struct{}, 1),
 		quit:          make(chan struct{}),
@@ -209,20 +207,13 @@ func New(options *Options) *Pool {
 				for _, c := range p.connections {
 					c.mu.RLock()
 					if !c.closeTime.IsZero() && c.closeTime.Before(time.Now()) {
-						p.errorChannel <- c.removeFromPool()
+						p.handleError(c.removeFromPool())
 					}
 					c.mu.RUnlock()
 				}
 				p.mu.Unlock()
 			case <-p.quit:
 				return
-			}
-		}
-	}()
-	go func() {
-		for err := range p.errorChannel {
-			if err != nil {
-				p.options.ErrorHandler.HandleError(err)
 			}
 		}
 	}()
@@ -277,9 +268,8 @@ func (p *Pool) Close() {
 	defer p.mu.Unlock()
 
 	for _, c := range p.connections {
-		p.errorChannel <- c.removeFromPool()
+		p.handleError(c.removeFromPool())
 	}
-	close(p.errorChannel)
 	close(p.quit)
 }
 
@@ -290,4 +280,10 @@ func (p *Pool) remove(path string) error {
 	}
 	delete(p.connections, path)
 	return c.DB.Close()
+}
+
+func (p *Pool) handleError(err error) {
+	if err != nil {
+		p.options.ErrorHandler.HandleError(err)
+	}
 }
