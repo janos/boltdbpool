@@ -40,7 +40,7 @@ type Pool struct {
 	series []string
 	dir    string
 	period period
-	mu     *sync.Mutex
+	mu     sync.Mutex
 }
 
 // New returns a new instance of Pool with database files in dir,
@@ -100,11 +100,10 @@ func New(dir string, p period, options *boltdbpool.Options) (*Pool, error) {
 		series: series,
 		dir:    dir,
 		period: p,
-		mu:     &sync.Mutex{},
 	}, nil
 }
 
-func (p Pool) seriesFromTime(t time.Time) string {
+func (p *Pool) seriesFromTime(t time.Time) string {
 	if p.period == Hourly {
 		return t.Format("2006010215")
 	}
@@ -120,7 +119,7 @@ func (p Pool) seriesFromTime(t time.Time) string {
 	return ""
 }
 
-func (p Pool) pathFromSeries(series string) (path string) {
+func (p *Pool) pathFromSeries(series string) (path string) {
 	if p.period == Hourly && len(series) == 10 {
 		return filepath.Join(p.dir, series[:6], series+".db")
 	}
@@ -136,7 +135,7 @@ func (p Pool) pathFromSeries(series string) (path string) {
 	return
 }
 
-func (p Pool) connFromPath(path string) (c *boltdbpool.Connection, err error) {
+func (p *Pool) connFromPath(path string) (c *boltdbpool.Connection, err error) {
 	if path == "" {
 		err = ErrUnknownDB
 		return
@@ -265,7 +264,7 @@ func (p *Pool) PrevConnection(t time.Time) (conn *Connection, err error) {
 }
 
 // Close closes underlying boltdbpool.Pool.
-func (p Pool) Close() {
+func (p *Pool) Close() {
 	p.pool.Close()
 }
 
@@ -279,7 +278,7 @@ type Connection struct {
 
 // Next returns a connection that holds newer data relative to the
 // data partition of the current connection.
-func (c Connection) Next() (*Connection, error) {
+func (c *Connection) Next() (*Connection, error) {
 	c.pool.mu.Lock()
 	defer c.pool.mu.Unlock()
 
@@ -303,7 +302,7 @@ func (c Connection) Next() (*Connection, error) {
 
 // Prev returns a connection that holds older data relative to the
 // data partition of the current connection.
-func (c Connection) Prev() (*Connection, error) {
+func (c *Connection) Prev() (*Connection, error) {
 	c.pool.mu.Lock()
 	defer c.pool.mu.Unlock()
 
