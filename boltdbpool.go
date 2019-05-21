@@ -60,14 +60,6 @@ import (
 )
 
 var (
-	// DefaultFileMode is used in bolt.Open() as file mode for database file
-	// if FileMode is not specified in boltdbpool.Options.
-	DefaultFileMode = os.FileMode(0666)
-
-	// DefaultDirMode is used in os.MkdirAll() as file mode for database directories
-	// if DirMode is not specified in boltdbpool.Options.
-	DefaultDirMode = os.FileMode(0777)
-
 	// DefaultErrorHandler is the default function that prints errors from the Pool.
 	DefaultErrorHandler = func(err error) {
 		log.Printf("error: %v", err)
@@ -78,12 +70,6 @@ var (
 type Options struct {
 	// BoltOptions is used on bolt.Open().
 	BoltOptions *bolt.Options
-
-	// FileMode is used in bolt.Open() as file mode for database file. Default: 0640.
-	FileMode os.FileMode
-
-	// DirMode is used in os.MkdirAll() as file mode for database directories. Default: 0750.
-	DirMode os.FileMode
 
 	// ConnectionExpires is a duration between the reference count drops to 0 and
 	// the time when the database is closed. It is useful to avoid frequent
@@ -108,12 +94,6 @@ type Pool struct {
 func New(options *Options) *Pool {
 	if options == nil {
 		options = &Options{}
-	}
-	if options.FileMode == 0 {
-		options.FileMode = DefaultFileMode
-	}
-	if options.DirMode == 0 {
-		options.DirMode = DefaultDirMode
 	}
 	if options.ErrorHandler == nil {
 		options.ErrorHandler = DefaultErrorHandler
@@ -163,13 +143,13 @@ func (p *Pool) Get(path string) (*Connection, error) {
 		return c, nil
 	}
 	if _, err := os.Stat(filepath.Dir(path)); os.IsNotExist(err) {
-		if err := os.MkdirAll(filepath.Dir(path), p.options.DirMode); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
 			return nil, err
 		}
 	} else if err != nil {
 		return nil, err
 	}
-	db, err := bolt.Open(path, p.options.FileMode, p.options.BoltOptions)
+	db, err := bolt.Open(path, 0666, p.options.BoltOptions)
 	if err != nil {
 		return nil, err
 	}

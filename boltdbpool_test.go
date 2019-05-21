@@ -22,9 +22,6 @@ func TestNewPool(t *testing.T) {
 	if pool.options.ConnectionExpires != 0 {
 		t.Error("pool.options.ConnectionExpires is not 0")
 	}
-	if pool.options.FileMode != DefaultFileMode {
-		t.Error("pool.options.FileMode is not DefaultFileMode")
-	}
 	if pool.options.BoltOptions != nil {
 		t.Error("pool.options.BoltOptions is not nil")
 	}
@@ -35,21 +32,16 @@ func TestNewPool(t *testing.T) {
 
 func TestNewPoolOptions(t *testing.T) {
 	connectionExpires := time.Duration(10 * time.Second)
-	fileMode := os.FileMode(0444)
 	boltOptions := &bolt.Options{}
 
 	pool := New(&Options{
 		ConnectionExpires: connectionExpires,
-		FileMode:          fileMode,
 		BoltOptions:       boltOptions,
 	})
 	defer pool.Close()
 
 	if pool.options.ConnectionExpires != connectionExpires {
 		t.Error("pool.options.ConnectionExpires is not connectionExpires")
-	}
-	if pool.options.FileMode != fileMode {
-		t.Error("pool.options.FileMode is not fileMode")
 	}
 	if pool.options.BoltOptions != boltOptions {
 		t.Error("pool.options.BoltOptions is not boltOptions")
