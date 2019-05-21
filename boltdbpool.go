@@ -62,11 +62,11 @@ import (
 var (
 	// DefaultFileMode is used in bolt.Open() as file mode for database file
 	// if FileMode is not specified in boltdbpool.Options.
-	DefaultFileMode = os.FileMode(0640)
+	DefaultFileMode = os.FileMode(0666)
 
 	// DefaultDirMode is used in os.MkdirAll() as file mode for database directories
 	// if DirMode is not specified in boltdbpool.Options.
-	DefaultDirMode = os.FileMode(0750)
+	DefaultDirMode = os.FileMode(0777)
 
 	// DefaultErrorHandler accepts errors from
 	// goroutine that closes the databases if ErrorHandler is not specified in
