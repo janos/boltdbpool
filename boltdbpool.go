@@ -170,6 +170,7 @@ type Pool struct {
 	errorChannel chan error
 	connections  map[string]*Connection
 	mu           sync.RWMutex
+	quit         chan struct{}
 }
 
 // New creates new pool with provided options and also starts database closing goroutone
@@ -191,19 +192,24 @@ func New(options *Options) *Pool {
 		options:      options,
 		errorChannel: make(chan error),
 		connections:  map[string]*Connection{},
+		quit:         make(chan struct{}),
 	}
 	go func() {
 		for {
-			p.mu.Lock()
-			for _, c := range p.connections {
-				c.mu.RLock()
-				if !c.closeTime.IsZero() && c.closeTime.Before(time.Now()) {
-					p.errorChannel <- c.removeFromPool()
+			select {
+			case <-time.After(defaultCloseSleep):
+				p.mu.Lock()
+				for _, c := range p.connections {
+					c.mu.RLock()
+					if !c.closeTime.IsZero() && c.closeTime.Before(time.Now()) {
+						p.errorChannel <- c.removeFromPool()
+					}
+					c.mu.RUnlock()
 				}
-				c.mu.RUnlock()
+				p.mu.Unlock()
+			case <-p.quit:
+				return
 			}
-			p.mu.Unlock()
-			time.Sleep(defaultCloseSleep)
 		}
 	}()
 	go func() {
@@ -268,6 +274,7 @@ func (p *Pool) Close() {
 		p.errorChannel <- c.removeFromPool()
 	}
 	close(p.errorChannel)
+	close(p.quit)
 }
 
 func (p *Pool) remove(path string) error {
