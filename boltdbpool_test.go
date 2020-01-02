@@ -171,11 +171,15 @@ func TestConnectionCounter(t *testing.T) {
 	if connection.count != 1 {
 		t.Errorf("connection reference counter is not 1: %d", connection.count)
 	}
-	pool.Get(path)
+	if _, err := pool.Get(path); err != nil {
+		t.Fatal(err)
+	}
 	if connection.count != 2 {
 		t.Errorf("connection reference counter is not 2: %d", connection.count)
 	}
-	pool.Get(path)
+	if _, err := pool.Get(path); err != nil {
+		t.Fatal(err)
+	}
 	if connection.count != 3 {
 		t.Errorf("connection reference counter is not 3: %d", connection.count)
 	}
@@ -183,7 +187,9 @@ func TestConnectionCounter(t *testing.T) {
 	if connection.count != 2 {
 		t.Errorf("connection reference counter is not 2: %d", connection.count)
 	}
-	pool.Get(path)
+	if _, err := pool.Get(path); err != nil {
+		t.Fatal(err)
+	}
 	if connection.count != 3 {
 		t.Errorf("connection reference counter is not 3: %d", connection.count)
 	}
@@ -196,12 +202,6 @@ func TestConnectionCounter(t *testing.T) {
 }
 
 func TestExpires(t *testing.T) {
-	connectionExpires := time.Duration(2 * time.Second)
-	pool := New(&Options{
-		ConnectionExpires: connectionExpires,
-	})
-	defer pool.Close()
-
 	path := tempfile()
 	defer func() {
 		err := os.Remove(path)
@@ -210,6 +210,12 @@ func TestExpires(t *testing.T) {
 		}
 	}()
 
+	connectionExpires := time.Duration(2 * time.Second)
+	pool := New(&Options{
+		ConnectionExpires: connectionExpires,
+	})
+	defer pool.Close()
+
 	connection, err := pool.Get(path)
 	if err != nil {
 		t.Errorf("Getting new connection: %s", err)
@@ -217,7 +223,9 @@ func TestExpires(t *testing.T) {
 	if connection.pool.options.ConnectionExpires != connectionExpires {
 		t.Error("connection.pool.options.ConnectionExpires is not connectionExpires")
 	}
-	pool.Get(path)
+	if _, err := pool.Get(path); err != nil {
+		t.Fatal(err)
+	}
 	if connection.count != 2 {
 		t.Errorf("connection reference counter is not 2: %d", connection.count)
 	}
@@ -246,7 +254,9 @@ func TestExpires(t *testing.T) {
 		t.Errorf("Getting new connection: %s", err)
 	}
 	connection.Close()
-	pool.Get(path)
+	if _, err := pool.Get(path); err != nil {
+		t.Fatal(err)
+	}
 	if !connection.closeTime.IsZero() {
 		t.Errorf("connection.closeTime is not zero after connection.Close() and seconf connection.Get() with expires option")
 	}
@@ -254,6 +264,14 @@ func TestExpires(t *testing.T) {
 }
 
 func TestErrorHandler(t *testing.T) {
+	path := tempfile()
+	defer func() {
+		err := os.Remove(path)
+		if err != nil {
+			t.Error(err)
+		}
+	}()
+
 	mu := &sync.Mutex{}
 	var errorMarker error
 	pool := New(&Options{
@@ -268,14 +286,6 @@ func TestErrorHandler(t *testing.T) {
 	})
 	defer pool.Close()
 
-	path := tempfile()
-	defer func() {
-		err := os.Remove(path)
-		if err != nil {
-			t.Error(err)
-		}
-	}()
-
 	connection, err := pool.Get(path)
 	if err != nil {
 		t.Errorf("Getting new connection: %s", err)
@@ -284,6 +294,8 @@ func TestErrorHandler(t *testing.T) {
 	pool.mu.Lock()
 	delete(pool.connections, path)
 	pool.mu.Unlock()
+
+	connection.DB.Close()
 
 	connection.Close()
 	time.Sleep(time.Second)
