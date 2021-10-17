@@ -6,7 +6,6 @@
 package timed
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,15 +13,7 @@ import (
 )
 
 func TestUnknownPeriod(t *testing.T) {
-	dir, err := ioutil.TempDir("", "boltdbpool-timed")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err = os.RemoveAll(dir); err != nil {
-			t.Error(err)
-		}
-	}()
+	dir := t.TempDir()
 	pool, err := New(dir, 0, nil)
 	if err != ErrUnknownPeriod {
 		t.Errorf("expected error %v, got %v", ErrUnknownPeriod, err)
@@ -33,15 +24,7 @@ func TestUnknownPeriod(t *testing.T) {
 }
 
 func TestHourlyPeriod(t *testing.T) {
-	dir, err := ioutil.TempDir("", "boltdbpool-timed")
-	if err != nil {
-		t.Error(err)
-	}
-	defer func() {
-		if err = os.RemoveAll(dir); err != nil {
-			t.Error(err)
-		}
-	}()
+	dir := t.TempDir()
 
 	currTime := time.Now()
 	nextTime := currTime.Add(time.Hour)
@@ -75,6 +58,8 @@ func TestHourlyPeriod(t *testing.T) {
 	if pool == nil {
 		t.Error("got nil pool")
 	}
+	defer pool.Close()
+
 	currConn, err := pool.GetConnection(currTime)
 	if err != nil {
 		t.Error(err)
@@ -155,15 +140,7 @@ func TestHourlyPeriod(t *testing.T) {
 }
 
 func TestDailyPeriod(t *testing.T) {
-	dir, err := ioutil.TempDir("", "boltdbpool-timed")
-	if err != nil {
-		t.Error(err)
-	}
-	defer func() {
-		if err = os.RemoveAll(dir); err != nil {
-			t.Error(err)
-		}
-	}()
+	dir := t.TempDir()
 
 	currTime := time.Now()
 	nextTime := currTime.Add(24 * time.Hour)
@@ -197,6 +174,8 @@ func TestDailyPeriod(t *testing.T) {
 	if pool == nil {
 		t.Error("got nil pool")
 	}
+	defer pool.Close()
+
 	currConn, err := pool.GetConnection(currTime)
 	if err != nil {
 		t.Error(err)
@@ -277,15 +256,7 @@ func TestDailyPeriod(t *testing.T) {
 }
 
 func TestMonthlyPeriod(t *testing.T) {
-	dir, err := ioutil.TempDir("", "boltdbpool-timed")
-	if err != nil {
-		t.Error(err)
-	}
-	defer func() {
-		if err = os.RemoveAll(dir); err != nil {
-			t.Error(err)
-		}
-	}()
+	dir := t.TempDir()
 
 	currTime := time.Now()
 	nextTime := currTime.Add(24 * 31 * time.Hour)
@@ -319,6 +290,8 @@ func TestMonthlyPeriod(t *testing.T) {
 	if pool == nil {
 		t.Error("got nil pool")
 	}
+	defer pool.Close()
+
 	currConn, err := pool.GetConnection(currTime)
 	if err != nil {
 		t.Error(err)
@@ -399,15 +372,7 @@ func TestMonthlyPeriod(t *testing.T) {
 }
 
 func TestYearlyPeriod(t *testing.T) {
-	dir, err := ioutil.TempDir("", "boltdbpool-timed")
-	if err != nil {
-		t.Error(err)
-	}
-	defer func() {
-		if err = os.RemoveAll(dir); err != nil {
-			t.Error(err)
-		}
-	}()
+	dir := t.TempDir()
 
 	currTime := time.Now()
 	nextTime := currTime.Add(24 * 366 * time.Hour)
@@ -441,6 +406,8 @@ func TestYearlyPeriod(t *testing.T) {
 	if pool == nil {
 		t.Error("got nil pool")
 	}
+	defer pool.Close()
+
 	currConn, err := pool.GetConnection(currTime)
 	if err != nil {
 		t.Error(err)
